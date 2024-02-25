@@ -14,19 +14,19 @@ const PADDLE_SPEED: f32 = 500.0;
 #[derive(Component)]
 struct Block;
 
+#[derive(Resource, Default)]
+struct Game {
+    board: Vec<Vec<Block>>,
+    player: Player,
+    score: i32,
+}
+
 #[derive(Resource, Default, Component)]
 struct Player {
     entity: Option<Entity>,
     x: isize,
     y: isize,
     move_cooldown: Timer,
-}
-
-#[derive(Resource, Default)]
-struct Game {
-    board: Vec<Vec<Block>>,
-    player: Player,
-    score: i32,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
@@ -42,10 +42,6 @@ struct BonusSpawnTimer(Timer);
 fn main() {
     App::new()
         .add_systems(Startup, setup) // runs once
-        .insert_resource(BonusSpawnTimer(Timer::from_seconds(
-            5.0,
-            TimerMode::Repeating,
-        )))
         .init_resource::<Game>()
         .init_state::<GameState>()
         .add_systems(OnEnter(GameState::Playing), setup)
@@ -69,7 +65,7 @@ fn main() {
                 bevy::window::close_on_esc,
             ),
         )
-        //.add_systems(OnExit(GameState::GameOver), teardown)
+        .add_systems(OnExit(GameState::GameOver), teardown)
         .insert_resource(Msaa::Off)
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -121,7 +117,7 @@ fn setup(mut commands: Commands, mut game: ResMut<Game>) {
                     ..default()
                 },
                 transform: Transform {
-                    translation: Vec2::new(0.0, 0.0).extend(1.0),
+                    translation: Vec3::new(0.0, 0.0, 1.0),
                     scale: Vec3::new(BLOCK_SIZE, BLOCK_SIZE, 1.0),
                     ..default()
                 },
@@ -129,7 +125,6 @@ fn setup(mut commands: Commands, mut game: ResMut<Game>) {
             })
             .id(),
     );
-    println!("WOW!");
 
     // Spawn walls
     let mut rng = rand::thread_rng();
@@ -157,46 +152,36 @@ fn setup(mut commands: Commands, mut game: ResMut<Game>) {
 }
 
 fn move_player(
-    mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut game: ResMut<Game>,
-    mut transforms: Query<&mut Transform>,
     time: Res<Time>,
-    //mut query: Query<&mut Transform, With<Player>>,
+    mut transforms: Query<&mut Transform>,
 ) {
     if game.player.move_cooldown.tick(time.delta()).finished() {
         let mut moved = false;
-        let mut rotation = 0.0;
 
         if keyboard_input.pressed(KeyCode::ArrowUp) {
-            game.player.x += 1;
+            game.player.y += 32;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::ArrowDown) {
-            if game.player.x > 0 {
-                game.player.x -= 1;
-            }
+            game.player.y -= 32;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::ArrowRight) {
-            if game.player.y < ARENA_LEFT - 1 {
-                game.player.y += 1;
-            }
+            game.player.x += 32;
             moved = true;
         }
         if keyboard_input.pressed(KeyCode::ArrowLeft) {
-            if game.player.y > 0 {
-                game.player.y -= 1;
-            }
+            game.player.x -= 32;
             moved = true;
         }
 
-        // move on the board
         if moved {
             game.player.move_cooldown.reset();
             *transforms.get_mut(game.player.entity.unwrap()).unwrap() = Transform {
-                translation: Vec3::new(game.player.x as f32, game.player.y as f32),
-                rotation: Quat::from_rotation_y(rotation),
+                translation: Vec3::new(game.player.x as f32, game.player.y as f32, 1.0),
+                scale: Vec3::new(BLOCK_SIZE, BLOCK_SIZE, 1.0),
                 ..default()
             };
         }
